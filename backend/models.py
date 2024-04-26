@@ -14,6 +14,14 @@ class User(db.Model):
     password = db.Column(db.Text, nullable=False)
     group_role = db.Column(db.String(32), nullable=True)
     points = db.Column(db.Integer, nullable=True)
+    events_participated = relationship("Event", secondary="event_contestants", backref="participants")
+
+    # Define the events relationship with a custom join condition
+    # events = relationship("Event", secondary="event_contestants",
+    #                       primaryjoin="User.id == EventContestants.user_id",
+    #                       secondaryjoin="Event.id == EventContestants.event_id",
+    #                       backref="participants")
+
 
 class Group(db.Model):
     __tablename__ = "groups"
@@ -41,13 +49,29 @@ class Event(db.Model):
     date = db.Column(db.Date, nullable=False)
     time = db.Column(db.Time, nullable=False)
     contestants = relationship("User", secondary="event_contestants", backref="events")
-    score = db.Column(db.Integer, nullable=True)
-    winner = relationship("User", secondary="winner", backref="events")
-    loser = relationship("User", secondary="loser", backref="events")
+    score_1 = db.Column(db.Integer, nullable=True)
+    score_2 = db.Column(db.Integer, nullable=True)
+    winners = relationship("User", secondary="winner", backref="won_events")
+    losers = relationship("User", secondary="loser", backref="lost_events")
 
 class EventContestants(db.Model):
     __tablename__ = "event_contestants"
     event_id = db.Column(db.String(32), db.ForeignKey('events.id'), primary_key=True)
     user_id = db.Column(db.String(32), db.ForeignKey('users.id'), primary_key=True)
     user = relationship("User", backref="contesting_events")
+
+class Winner(db.Model):
+    __tablename__ = "winner"
+    event_id = db.Column(db.String(32), db.ForeignKey('events.id'), primary_key=True)
+    user_id = db.Column(db.String(32), db.ForeignKey('users.id'), primary_key=True)
+    event_won = relationship("Event", backref="event_winners")
+    user = relationship("User", backref="won_event")
+
+class Loser(db.Model):
+    __tablename__ = "loser"
+    event_id = db.Column(db.String(32), db.ForeignKey('events.id'), primary_key=True)
+    user_id = db.Column(db.String(32), db.ForeignKey('users.id'), primary_key=True)
+    event_lost = relationship("Event", backref="event_losers")
+    user = relationship("User", backref="lost_event")
+
 

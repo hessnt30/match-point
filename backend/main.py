@@ -3,7 +3,8 @@ from flask import Flask, request, jsonify, session
 from flask_bcrypt import Bcrypt
 from flask_session import Session
 from flask_cors import cross_origin
-from models import User, Group
+from models import User, Group, Event
+from datetime import datetime
 import urllib.request
 import json
 
@@ -253,9 +254,73 @@ def delete_group():
           "owner" : group.owner.username
      }), 401
 
+@app.route("/all-events")
+def get_all_events():
+     group_name = request.json["groupName"]
+
+     # get group
+     group = Group.query.filter_by(group_name=group_name).first()
+
+     if not group:
+          return jsonify({
+               "error" : "group does not exist"
+          }), 401
+     
+     return jsonify({
+          "groupName" : group_name,
+          "events" : [event.name for event in group.events]
+     })
+
 # end user ---------------------------------------------------------
 
 # start event ---------------------------------------------------------
+
+@app.route("/create-event", methods=["POST"])
+def create_event():
+     # get current user
+     user_id = session.get("user_id")
+
+     if not user_id:
+          return jsonify({"error": "Unauthorized"}), 401
+
+     group = Group.query.filter_by(owner_id=user_id).first()
+
+     if group is None:
+          return jsonify({ "error" : "Unauthorized"}), 401
+
+     # make event
+     event_name = request.json["name"]
+     event_type = request.json["type"]
+     date_str = request.json["date"]
+     date = datetime.strptime(date_str, "%m/%d/%Y").date()
+     time_str = request.json["time"]
+     time = datetime.strptime(time_str, "%H:%M:%S").time()
+     contestants = []  # Initialize contestants list
+     winners = []  # Initialize winners list
+     losers = []  # Initialize losers list
+
+     for contestant in request.json["contestants"]:
+          curr_contestant = User.query.get(contestant)
+          if curr_contestant in group.members:
+               contestants.append(curr_contestant)
+
+     new_event = Event(name=event_name, event_type=event_type, group=group, date=date, 
+                       time=time, contestants=contestants, score_1=None, score_2=None, winners=winners, losers=losers)
+
+     db.session.add(new_event)
+     db.session.commit()
+
+     return jsonify({
+          "eventName" : event_name,
+          "type" : event_type,
+          "group" : new_event.group.group_name,
+          "date" : str(date),
+          "time" : str(time),
+          "contestants" : [contestant.username for contestant in new_event.contestants],
+          # "scores": {"score1": score1, "score2": score2}
+          # "winners" : [winner.username for winner in new_event.winners],
+          # "losers" : [loser.username for loser in new_event.losers]     
+     })
 
 # end event ---------------------------------------------------------
 
