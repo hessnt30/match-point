@@ -215,11 +215,11 @@ def leave_group():
 
 @app.route("/delete-group", methods=["POST"])
 def delete_group():
-     group_name = request.json["groupName"]
+     group_id = request.json["groupID"]
      password = request.json["password"]
 
      # get group
-     group = Group.query.filter_by(group_name=group_name).first()
+     group = Group.query.filter_by(id=group_id).first()
 
      if not group:
           return jsonify({"error": "Group does not exist"}), 401
@@ -246,7 +246,7 @@ def delete_group():
           db.session.commit()
           return jsonify({
                "groupStatus" : "Group deleted"
-          })
+          }), 200
 
      return jsonify({
           "error" : "Unauthorized access",
@@ -280,10 +280,12 @@ def create_event():
      # get current user
      user_id = session.get("user_id")
 
+     group_id = request.json["groupID"]
+
      if not user_id:
           return jsonify({"error": "Unauthorized"}), 401
 
-     group = Group.query.filter_by(owner_id=user_id).first()
+     group = Group.query.filter_by(id=group_id).first()
 
      if group is None:
           return jsonify({ "error" : "Unauthorized"}), 401
@@ -311,6 +313,7 @@ def create_event():
      db.session.commit()
 
      return jsonify({
+          "eventID" : new_event.id,
           "eventName" : event_name,
           "type" : event_type,
           "group" : new_event.group.group_name,
@@ -321,6 +324,43 @@ def create_event():
           # "winners" : [winner.username for winner in new_event.winners],
           # "losers" : [loser.username for loser in new_event.losers]     
      })
+
+@app.route("/delete-event", methods=["POST"])
+def delete_event():
+     group_id = request.json["groupID"]
+     event_id = request.json["eventID"]
+
+     # get group and event
+     group = Group.query.filter_by(id=group_id).first()
+     event = Event.query.filter_by(id=event_id).first()
+
+     if not group:
+          return jsonify({"error": "Group does not exist"}), 401
+     
+     if not event:
+          return jsonify({"error": "EVent does not exist"}), 401
+
+     # get current user
+     user_id = session.get("user_id")
+
+     if not user_id:
+          return jsonify({"error": "Unauthorized"}), 401
+     
+     current_user = User.query.get(user_id)
+
+     # make sure admin is doing the action
+     if current_user.username == group.owner.username:
+          db.session.delete(event)
+          db.session.commit()
+          return jsonify({
+               "eventStatus" : "Event deleted"
+          }), 200
+
+     return jsonify({
+          "error" : "Unauthorized access",
+          "groupName": group.group_name,
+          "owner" : group.owner.username
+     }), 401
 
 # end event ---------------------------------------------------------
 

@@ -48,11 +48,11 @@ class Event(db.Model):
     group = relationship("Group", backref="events")
     date = db.Column(db.Date, nullable=False)
     time = db.Column(db.Time, nullable=False)
-    contestants = relationship("User", secondary="event_contestants", backref="events")
+    contestants = relationship("User", secondary="event_contestants", backref="events", cascade="all, delete")
     score_1 = db.Column(db.Integer, nullable=True)
     score_2 = db.Column(db.Integer, nullable=True)
-    winners = relationship("User", secondary="winner", backref="won_events")
-    losers = relationship("User", secondary="loser", backref="lost_events")
+    winners = relationship("User", secondary="winner", backref="won_events", cascade="all, delete")
+    losers = relationship("User", secondary="loser", backref="lost_events", cascade="all, delete")
 
 class EventContestants(db.Model):
     __tablename__ = "event_contestants"
