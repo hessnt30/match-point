@@ -3,7 +3,7 @@ from flask import Flask, request, jsonify, session
 from flask_bcrypt import Bcrypt
 from flask_session import Session
 from flask_cors import cross_origin
-from models import User, Group, Event
+from models import User, Group, Event, UserGroupPoints, add_user_to_group
 from datetime import datetime
 import urllib.request
 import json
@@ -26,7 +26,7 @@ def register_user():
           return jsonify({"error" : "User already exists with that email"}), 409
      
      hashed_password = bcrypt.generate_password_hash(password)
-     new_user = User(email=email, username=username, password=hashed_password, group_role=None, points=None)
+     new_user = User(email=email, username=username, password=hashed_password, group_role=None)
 
      db.session.add(new_user)
      db.session.commit()
@@ -79,20 +79,35 @@ def get_current_user():
           
      return jsonify({
           "id" : user.id,
-          "email" : user.email
+          "email" : user.email,
+          "username" : user.username
      })
 
-@app.route("/points/<username>")
-def get_user_points(username):
-     user = User.query.filter_by(username=username).first()
+@app.route("/my-groups")
+def get_current_user_groups():
+     user_id = session.get("user_id")
 
-     if user is None:
-        return jsonify({"error": "Unauthorized"}), 401
+     if not user_id:
+          return jsonify({"error": "Unauthorized"}), 401
      
+     user = User.query.filter_by(id=user_id).first()
+
+     groups_data = []
+     for group in user.groups:
+          group_data = {
+               "id": group.id,
+               "name": group.group_name,
+               "members" : len(group.members)
+          }
+          groups_data.append(group_data)
+          
      return jsonify({
+          "id" : user.id,
+          "email" : user.email,
           "username" : user.username,
-          "points" : user.points
+          "groups" : groups_data
      })
+          
 
 # end user ---------------------------------------------------------
 
@@ -118,10 +133,12 @@ def create_group():
      hashed_password = bcrypt.generate_password_hash(password)
      new_group = Group(group_name=group_name, password=hashed_password, owner=current_user)
 
-     # Add user to the group
-     new_group.members.append(current_user)
-
      db.session.add(new_group)
+     db.session.commit()
+
+     # Add user to the group
+     add_user_to_group(user_id, new_group.id, 0)
+
      db.session.commit()
 
      return jsonify({
@@ -256,10 +273,10 @@ def delete_group():
 
 @app.route("/all-events")
 def get_all_events():
-     group_name = request.json["groupName"]
+     group_id = request.json["groupID"]
 
      # get group
-     group = Group.query.filter_by(group_name=group_name).first()
+     group = Group.query.filter_by(id=group_id).first()
 
      if not group:
           return jsonify({
@@ -267,8 +284,26 @@ def get_all_events():
           }), 401
      
      return jsonify({
-          "groupName" : group_name,
+          "groupID" : group.id,
+          "groupName" : group.group_name,
           "events" : [event.name for event in group.events]
+     })
+
+@app.route("/get-points")
+def get_user_points():
+     user_id = request.json["userID"]
+     group_id = request.json["groupID"]
+
+     # Query the UserGroupPoints table to get the points for the user in the specific group
+     user_group_points = UserGroupPoints.query.filter_by(user_id=user_id, group_id=group_id).first()
+
+     if not user_group_points:
+          return jsonify({ "error" : "unauthorized"})
+     
+     return jsonify({
+          "userID" : user_id,
+          "groupID" : group_id,
+          "points" : user_group_points.user.group_points
      })
 
 # end user ---------------------------------------------------------

@@ -13,14 +13,8 @@ class User(db.Model):
     username = db.Column(db.String(150), unique=False, nullable=False)
     password = db.Column(db.Text, nullable=False)
     group_role = db.Column(db.String(32), nullable=True)
-    points = db.Column(db.Integer, nullable=True)
+    group_points = relationship("UserGroupPoints", back_populates="user")
     events_participated = relationship("Event", secondary="event_contestants", backref="participants")
-
-    # Define the events relationship with a custom join condition
-    # events = relationship("Event", secondary="event_contestants",
-    #                       primaryjoin="User.id == EventContestants.user_id",
-    #                       secondaryjoin="Event.id == EventContestants.event_id",
-    #                       backref="participants")
 
 
 class Group(db.Model):
@@ -32,12 +26,14 @@ class Group(db.Model):
     owner = relationship("User", backref="owned_groups", foreign_keys=[owner_id])
     members = relationship("User", secondary="group_membership", backref="groups")
     date_created = db.Column(db.DateTime(timezone=True), default=func.now())
+    user_points = relationship("UserGroupPoints", back_populates="group")
 
 class GroupMembership(db.Model):
     __tablename__ = "group_membership"
     user_id = db.Column(db.String(32), db.ForeignKey('users.id'), primary_key=True)
     group_id = db.Column(db.String(32), db.ForeignKey('groups.id'), primary_key=True)
     date_joined = db.Column(db.DateTime(timezone=True), default=func.now())
+    points = db.Column(db.Integer, nullable=True)
 
 class Event(db.Model):
     __tablename__ = "events"
@@ -74,4 +70,16 @@ class Loser(db.Model):
     event_lost = relationship("Event", backref="event_losers")
     user = relationship("User", backref="lost_event")
 
+class UserGroupPoints(db.Model):
+    __tablename__ = "user_group_points"
+    user_id = db.Column(db.String(32), db.ForeignKey('users.id'), primary_key=True)
+    group_id = db.Column(db.String(32), db.ForeignKey('groups.id'), primary_key=True)
+    points = db.Column(db.Integer, nullable=True)
+    user = relationship("User", back_populates="group_points")
+    group = relationship("Group", back_populates="user_points")
 
+# When adding a user to a group, also set their initial points
+def add_user_to_group(user_id, group_id, points=None):
+    membership = GroupMembership(user_id=user_id, group_id=group_id, points=points)
+    db.session.add(membership)
+    db.session.commit()
